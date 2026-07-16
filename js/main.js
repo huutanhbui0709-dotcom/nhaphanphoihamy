@@ -84,7 +84,9 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
         const tab = btn.dataset.tab;
         $("#tabProcess").style.display = tab === "process" ? "" : "none";
         $("#tabSaved").style.display = tab === "saved" ? "" : "none";
+        $("#tabSearch").style.display = tab === "search" ? "" : "none";
         if (tab === "saved") fetchSavedInvoices();
+        if (tab === "search") { renderCatalogTable(); renderSearchResults(); }
     });
 });
 
@@ -653,5 +655,447 @@ function showToast(msg) {
     clearTimeout(t._timer);
     t._timer = setTimeout(() => t.classList.remove("show"), 2800);
 }
+
+/* ===================== product catalog + fuzzy search ===================== */
+/*
+ * Kho san pham dung chung cho tab "Tim kiem san pham".
+ * Luu tren backend dung chung qua /api/products (Vercel Serverless Function +
+ * Upstash Redis) -- giong co che cua /api/invoices -- de moi nguoi truy cap
+ * trang deu thay cung 1 danh muc, thay vi moi may luu rieng trong localStorage
+ * nhu truoc.
+ * Co the nap du lieu bang 2 cach:
+ *   1) Nguoi dung bam "Nhap file Excel/CSV" trong giao dien (xem phan importFileInput ben duoi).
+ *   2) Goi truc tiep tu console/tinh nang khac: ProductCatalog.addMany(list) hoac
+ *      ProductCatalog.replaceAll(list) -- tab tim kiem se tu dong dung du lieu moi.
+ * Moi san pham co dang: { id, ma_hang, ten_hang, dvt, gia_ban, gia_von }
+ */
+let productCatalog = [];
+let productUidCounter = 0;
+let productCatalogLoading = false;
+
+async function fetchProductCatalog() {
+    productCatalogLoading = true;
+    try {
+        const res = await fetch("/api/products");
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || "Không tải được danh mục sản phẩm.");
+        productCatalog = json.products || [];
+    } catch (err) {
+        showToast("Không tải được danh mục sản phẩm: " + (err.message || err));
+        productCatalog = [];
+    }
+    productCatalogLoading = false;
+    onCatalogChanged();
+}
+
+async function saveProductCatalog() {
+    try {
+        const res = await fetch("/api/products", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ products: productCatalog })
+        });
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.error || "Lưu danh mục thất bại.");
+        return true;
+    } catch (err) {
+        showToast("Không lưu được danh mục sản phẩm: " + (err.message || err));
+        return false;
+    }
+}
+
+function nextProductId() { return "prod_" + Date.now() + "_" + (++productUidCounter); }
+function normalizeProductInput(p) {
+    return {
+        id: nextProductId(),
+        ma_hang: String(p.ma_hang ?? "").trim(),
+        ten_hang: String(p.ten_hang ?? "").trim(),
+        dvt: String(p.dvt ?? "").trim(),
+        gia_ban: numOrZero(p.gia_ban),
+        gia_von: numOrZero(p.gia_von)
+    };
+}
+
+const ProductCatalog = {
+    all() { return productCatalog.slice(); },
+    async add(p) {
+        productCatalog.push(normalizeProductInput(p));
+        onCatalogChanged();
+        await saveProductCatalog();
+    },
+    async addMany(list) {
+        (list || []).forEach(p => productCatalog.push(normalizeProductInput(p)));
+        onCatalogChanged();
+        await saveProductCatalog();
+    },
+    async replaceAll(list) {
+        productCatalog = (list || []).map(normalizeProductInput);
+        onCatalogChanged();
+        await saveProductCatalog();
+    },
+    async remove(id) {
+        productCatalog = productCatalog.filter(p => p.id !== id);
+        onCatalogChanged();
+        await saveProductCatalog();
+    },
+    async clear() {
+        productCatalog = [];
+        onCatalogChanged();
+        await saveProductCatalog();
+    }
+};
+window.ProductCatalog = ProductCatalog; // co the goi tu ngoai de nap du lieu
+
+function onCatalogChanged() {
+    updateProductCount();
+    renderCatalogTable();
+    renderSearchResults();
+}
+function updateProductCount() {
+    $("#productCount").textContent = productCatalog.length;
+}
+
+/* ---- Vietnamese-aware normalization + fuzzy scoring ---- */
+function normalizeVN(str) {
+    return String(str ?? "")
+        .replace(/đ/g, "d").replace(/Đ/g, "D")
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+function tokenizeVN(str) {
+    const s = normalizeVN(str);
+    return s ? s.split(" ") : [];
+}
+function levenshtein(a, b) {
+    if (a === b) return 0;
+    const al = a.length, bl = b.length;
+    if (al === 0) return bl;
+    if (bl === 0) return al;
+    let prev = new Array(bl + 1);
+    for (let j = 0; j <= bl; j++) prev[j] = j;
+    for (let i = 1; i <= al; i++) {
+        const cur = [i];
+        for (let j = 1; j <= bl; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+        }
+        prev = cur;
+    }
+    return prev[bl];
+}
+function tokenSimilarity(qt, pt) {
+    if (!qt || !pt) return 0;
+    if (qt === pt) return 1;
+    if (pt.startsWith(qt) || qt.startsWith(pt)) return 0.9;
+    if (pt.includes(qt) || qt.includes(pt)) return 0.8;
+    const dist = levenshtein(qt, pt);
+    const sim = 1 - dist / Math.max(qt.length, pt.length);
+    return sim > 0.5 ? sim * 0.8 : 0;
+}
+// Tra ve diem khop 0..1 giua tu khoa tim kiem va mot san pham trong danh muc.
+function scoreProduct(queryTokens, product) {
+    if (!queryTokens.length) return 0;
+    const prodTokens = tokenizeVN(`${product.ten_hang} ${product.ma_hang}`);
+    if (!prodTokens.length) return 0;
+    let sum = 0;
+    queryTokens.forEach(qt => {
+        let best = 0;
+        prodTokens.forEach(pt => { const s = tokenSimilarity(qt, pt); if (s > best) best = s; });
+        sum += best;
+    });
+    return sum / queryTokens.length;
+}
+function searchProducts(query) {
+    const tokensAll = tokenizeVN(query);
+    const tokens = tokensAll.filter(t => t.length >= 2);
+    const useTokens = tokens.length ? tokens : tokensAll;
+    if (!useTokens.length) return [];
+    const scored = productCatalog.map(p => ({ product: p, score: scoreProduct(useTokens, p) }));
+    return scored
+        .filter(r => r.score >= 0.35)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 30);
+}
+
+/* ---- rendering: search tab ---- */
+const productSearchInput = $("#productSearchInput");
+let searchDebounceTimer = null;
+productSearchInput.addEventListener("input", () => {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(renderSearchResults, 150);
+});
+$("#clearSearchBtn").addEventListener("click", () => {
+    productSearchInput.value = "";
+    renderSearchResults();
+    productSearchInput.focus();
+});
+
+function renderSearchResults() {
+    const table = $("#searchResultsTable");
+    const scrollWrap = $("#searchResultsScroll");
+    const tbody = $("#searchResultsTbody");
+    const empty = $("#searchEmpty");
+    const query = productSearchInput.value.trim();
+    tbody.innerHTML = "";
+
+    if (!query) {
+        table.style.display = "none";
+        scrollWrap.style.display = "none";
+        empty.style.display = "block";
+        empty.innerHTML = `<p>Nhap tu khoa o tren de tim san pham gan dung trong danh muc.</p>`;
+        return;
+    }
+    if (!productCatalog.length) {
+        table.style.display = "none";
+        scrollWrap.style.display = "none";
+        empty.style.display = "block";
+        empty.innerHTML = `<p>Danh muc san pham dang trong. Nhap file hoac them san pham o bang ben duoi truoc khi tim kiem.</p>`;
+        return;
+    }
+    const results = searchProducts(query);
+    if (!results.length) {
+        table.style.display = "none";
+        scrollWrap.style.display = "none";
+        empty.style.display = "block";
+        empty.innerHTML = `<p>Khong tim thay san pham nao gan giong "${escapeHtml(query)}".</p>`;
+        return;
+    }
+    empty.style.display = "none";
+    scrollWrap.style.display = "block";
+    table.style.display = "table";
+    results.forEach(({ product, score }) => {
+        const pct = Math.round(score * 100);
+        const cls = pct >= 70 ? "" : (pct >= 50 ? "mid" : "low");
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+      <td>${escapeHtml(product.ma_hang || "—")}</td>
+      <td>${escapeHtml(product.ten_hang || "—")}</td>
+      <td>${escapeHtml(product.dvt || "—")}</td>
+      <td class="num">${formatNumber(product.gia_ban)}</td>
+      <td class="num">${formatNumber(product.gia_von)}</td>
+      <td class="num"><span class="match-badge ${cls}">${pct}%</span></td>
+      <td><button class="copy-row-btn" title="Sao chep ten hang">📋</button></td>`;
+        tr.querySelector(".copy-row-btn").onclick = () => copyText(product.ten_hang || "");
+        tbody.appendChild(tr);
+    });
+}
+
+/* ---- rendering: catalog tab ---- */
+const catalogFilterInput = $("#catalogFilterInput");
+let catalogFilterDebounce = null;
+catalogFilterInput.addEventListener("input", () => {
+    clearTimeout(catalogFilterDebounce);
+    catalogFilterDebounce = setTimeout(renderCatalogTable, 120);
+});
+
+function renderCatalogTable() {
+    const tbody = $("#catalogTbody");
+    const table = $("#catalogTable");
+    const empty = $("#catalogEmpty");
+    const hint = $("#catalogCountHint");
+    tbody.innerHTML = "";
+
+    const q = normalizeVN(catalogFilterInput.value.trim());
+    const list = q
+        ? productCatalog.filter(p => normalizeVN(`${p.ma_hang} ${p.ten_hang}`).includes(q))
+        : productCatalog;
+
+    if (!productCatalog.length) {
+        empty.style.display = "block";
+        empty.innerHTML = `<p>Chưa có sản phẩm nào trong danh mục. Nhập file Excel/CSV hoặc thêm thủ công ở trên.</p>`;
+        table.closest(".table-scroll").style.display = "none";
+        hint.textContent = "";
+        return;
+    }
+    if (q && !list.length) {
+        empty.style.display = "block";
+        empty.innerHTML = `<p>Không có sản phẩm nào khớp bộ lọc "${escapeHtml(catalogFilterInput.value.trim())}".</p>`;
+        table.closest(".table-scroll").style.display = "none";
+        hint.textContent = `0 / ${productCatalog.length} sản phẩm`;
+        return;
+    }
+    empty.style.display = "none";
+    table.closest(".table-scroll").style.display = "block";
+    hint.textContent = q ? `${list.length} / ${productCatalog.length} sản phẩm` : `${productCatalog.length} sản phẩm`;
+
+    list.forEach(p => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+      <td>${escapeHtml(p.ma_hang || "—")}</td>
+      <td>${escapeHtml(p.ten_hang || "—")}</td>
+      <td>${escapeHtml(p.dvt || "—")}</td>
+      <td class="num">${formatNumber(p.gia_ban)}</td>
+      <td class="num">${formatNumber(p.gia_von)}</td>
+      <td><button class="saved-del" title="Xoa san pham">✕</button></td>`;
+        tr.querySelector(".saved-del").onclick = () => ProductCatalog.remove(p.id);
+        tbody.appendChild(tr);
+    });
+}
+
+$("#addProductBtn").addEventListener("click", () => {
+    const ten = $("#newProdTen").value.trim();
+    if (!ten) { showToast("Vui long nhap ten hang."); $("#newProdTen").focus(); return; }
+    ProductCatalog.add({
+        ma_hang: $("#newProdMa").value,
+        ten_hang: ten,
+        dvt: $("#newProdDvt").value,
+        gia_ban: $("#newProdGiaBan").value,
+        gia_von: $("#newProdGiaVon").value
+    });
+    $("#newProdMa").value = "";
+    $("#newProdTen").value = "";
+    $("#newProdDvt").value = "";
+    $("#newProdGiaBan").value = "";
+    $("#newProdGiaVon").value = "";
+    $("#newProdTen").focus();
+    showToast("Da them san pham vao danh muc.");
+});
+["newProdMa", "newProdTen", "newProdDvt", "newProdGiaBan", "newProdGiaVon"].forEach(id => {
+    $("#" + id).addEventListener("keydown", e => { if (e.key === "Enter") $("#addProductBtn").click(); });
+});
+$("#clearCatalogBtn").addEventListener("click", () => {
+    if (!productCatalog.length) return;
+    if (confirm("Xoa toan bo danh muc san pham? Hanh dong nay khong the hoan tac.")) {
+        ProductCatalog.clear();
+        catalogFilterInput.value = "";
+        showToast("Da xoa toan bo danh muc.");
+    }
+});
+
+/* ===================== import tu file Excel/CSV ===================== */
+/*
+ * Chi lay 5 cot: Ma hang, Ten hang, DVT, Gia ban, Gia von.
+ * Doc file bang thu vien SheetJS (da nap san o index.html), tu do khop ten cot
+ * (khong phan biet dau/hoa-thuong) de tuong thich voi nhieu mau file khac nhau
+ * (vd file xuat tu POS365: "Ma hang hoa", "Ten hang hoa", "Gia ban", "Gia von", "DVT").
+ */
+const HEADER_CANDIDATES = {
+    ma_hang: ["ma hang hoa", "ma hang", "ma san pham", "ma sp", "ma"],
+    ten_hang: ["ten hang hoa", "ten hang", "ten san pham", "ten sp", "ten"],
+    dvt: ["dvt", "don vi tinh", "don vi"],
+    gia_ban: ["gia ban", "don gia ban", "gia ban le", "gia"],
+    gia_von: ["gia von", "gia goc", "gia nhap", "gia von hang"]
+};
+// Nhung tu can loai neu header co chua, de tranh nham voi "Gia ban DVT Lon", "Ton kho"...
+const HEADER_EXCLUDE_WORDS = ["lon", "quy doi", "ton kho", "nho nhat", "lon nhat"];
+
+function matchHeaderColumns(headerRow) {
+    const normalized = headerRow.map(h => normalizeVN(h));
+    const colIndex = {};
+    Object.keys(HEADER_CANDIDATES).forEach(field => {
+        const candidates = HEADER_CANDIDATES[field];
+        let found = -1;
+        // 1) khop chinh xac theo thu tu uu tien
+        for (const cand of candidates) {
+            const idx = normalized.findIndex(h => h === cand);
+            if (idx !== -1) { found = idx; break; }
+        }
+        // 2) fallback: header chua tat ca tu cua ung vien dau tien va khong dinh tu bi loai
+        if (found === -1) {
+            const words = candidates[0].split(" ");
+            found = normalized.findIndex(h =>
+                words.every(w => h.includes(w)) &&
+                !HEADER_EXCLUDE_WORDS.some(ex => h.includes(ex))
+            );
+        }
+        colIndex[field] = found;
+    });
+    return colIndex;
+}
+
+function parseWorkbookToProducts(workbook) {
+    // lay sheet dau tien co du lieu
+    let rows = [];
+    for (const name of workbook.SheetNames) {
+        const ws = workbook.Sheets[name];
+        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "", raw: true });
+        if (aoa.length > 1) { rows = aoa; break; }
+        if (!rows.length) rows = aoa;
+    }
+    if (rows.length < 2) return { products: [], missing: Object.keys(HEADER_CANDIDATES) };
+
+    const header = rows[0].map(h => String(h ?? ""));
+    const colIndex = matchHeaderColumns(header);
+    const missing = Object.keys(colIndex).filter(f => colIndex[f] === -1);
+    // bat buoc phai co it nhat ten hang de import co y nghia
+    if (colIndex.ten_hang === -1) return { products: [], missing };
+
+    const products = [];
+    for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || row.every(c => c === "" || c == null)) continue;
+        const get = (field) => (colIndex[field] !== -1 ? row[colIndex[field]] : "");
+        const ten_hang = String(get("ten_hang") ?? "").trim();
+        if (!ten_hang) continue;
+        products.push({
+            ma_hang: String(get("ma_hang") ?? "").trim(),
+            ten_hang,
+            dvt: String(get("dvt") ?? "").trim(),
+            gia_ban: numOrZero(get("gia_ban")),
+            gia_von: numOrZero(get("gia_von"))
+        });
+    }
+    return { products, missing };
+}
+
+let pendingImportProducts = null;
+let pendingImportFileName = "";
+
+$("#importFileBtn").addEventListener("click", () => $("#importFileInput").click());
+$("#importFileInput").addEventListener("change", async (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+        const buf = await file.arrayBuffer();
+        const workbook = XLSX.read(buf, { type: "array" });
+        const { products, missing } = parseWorkbookToProducts(workbook);
+        if (!products.length) {
+            showToast(missing.includes("ten_hang")
+                ? "Không đọc được cột Tên hàng trong file — kiểm tra lại tiêu đề cột."
+                : "Không tìm thấy dòng sản phẩm hợp lệ nào trong file.");
+            return;
+        }
+        pendingImportProducts = products;
+        pendingImportFileName = file.name;
+        showImportSummary();
+    } catch (err) {
+        showToast("Không đọc được file: " + (err.message || err));
+    }
+});
+
+function showImportSummary() {
+    const panel = $("#importSummary");
+    const text = $("#importSummaryText");
+    const n = pendingImportProducts.length;
+    text.innerHTML = `Đã đọc <b>${n}</b> sản phẩm từ file "${escapeHtml(pendingImportFileName)}". Chọn cách nạp vào danh mục:`;
+    panel.style.display = "flex";
+}
+function hideImportSummary() {
+    $("#importSummary").style.display = "none";
+    pendingImportProducts = null;
+    pendingImportFileName = "";
+}
+$("#importAppendBtn").addEventListener("click", () => {
+    if (!pendingImportProducts) return;
+    const n = pendingImportProducts.length;
+    ProductCatalog.addMany(pendingImportProducts);
+    hideImportSummary();
+    showToast(`Đã thêm ${n} sản phẩm vào danh mục.`);
+});
+$("#importReplaceBtn").addEventListener("click", () => {
+    if (!pendingImportProducts) return;
+    const n = pendingImportProducts.length;
+    if (!confirm(`Thay thế toàn bộ danh mục hiện tại (${productCatalog.length} sản phẩm) bằng ${n} sản phẩm từ file? Dữ liệu cũ sẽ mất.`)) return;
+    ProductCatalog.replaceAll(pendingImportProducts);
+    hideImportSummary();
+    showToast(`Đã thay thế danh mục bằng ${n} sản phẩm.`);
+});
+$("#importCancelBtn").addEventListener("click", hideImportSummary);
+
+fetchProductCatalog();
 
 renderAll();

@@ -53,6 +53,8 @@
       <button class="tab-btn active" data-tab="process">Xử lý hoá đơn</button>
       <button class="tab-btn" data-tab="saved">Danh sách hoá đơn <span class="tab-count"
           id="savedCount">0</span></button>
+      <button class="tab-btn" data-tab="search">Tìm kiếm sản phẩm <span class="tab-count"
+          id="productCount">0</span></button>
     </nav>
 
     <div class="tab-panel" id="tabProcess">
@@ -119,6 +121,112 @@
         </div>
       </section>
     </div><!-- /tabSaved -->
+
+    <div class="tab-panel" id="tabSearch" style="display:none;">
+      <section class="paper-card" id="searchSection" style="padding:22px 26px;">
+        <div class="saved-head">
+          <h2>Tìm kiếm sản phẩm</h2>
+          <p class="hint" style="margin:0;">Nhập gần đúng tên/mã sản phẩm — hệ thống tự bỏ dấu, sắp xếp theo độ khớp
+            gần nhất.</p>
+        </div>
+        <div class="search-bar">
+          <input type="text" id="productSearchInput" placeholder="VD: Bọc20 vàng A CHỮ ĐỎ..." autocomplete="off">
+          <button class="btn btn-ghost btn-sm" id="clearSearchBtn">✕ Xoá</button>
+        </div>
+        <div id="searchResultsWrap">
+          <div class="table-scroll" id="searchResultsScroll" style="display:none;">
+            <table class="saved-table" id="searchResultsTable" style="display:none;">
+              <thead>
+                <tr>
+                  <th style="width:100px;">Mã hàng</th>
+                  <th>Tên hàng</th>
+                  <th style="width:60px;">ĐVT</th>
+                  <th class="num" style="width:100px;">Giá bán</th>
+                  <th class="num" style="width:100px;">Giá vốn</th>
+                  <th class="num" style="width:80px;">Độ khớp</th>
+                  <th style="width:50px;"></th>
+                </tr>
+              </thead>
+              <tbody id="searchResultsTbody"></tbody>
+            </table>
+          </div>
+          <div class="empty-state" id="searchEmpty">
+            <p>Nhập từ khoá ở trên để tìm sản phẩm gần đúng trong danh mục.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="paper-card" id="catalogSection" style="padding:22px 26px;">
+        <div class="saved-head">
+          <h2>Danh mục sản phẩm</h2>
+          <div class="actions">
+            <input type="file" id="importFileInput" accept=".xlsx,.xls,.csv" style="display:none;">
+            <button class="btn btn-gold btn-sm" id="importFileBtn">📥 Nhập file Excel/CSV</button>
+            <button class="btn btn-ghost btn-sm" id="clearCatalogBtn">🗑 Xoá toàn bộ danh mục</button>
+          </div>
+        </div>
+        <p class="hint" style="margin:0 0 14px;">Danh mục này dùng để tìm kiếm ở trên. Có thể nhập hàng loạt từ file
+          Excel/CSV (chỉ lấy các cột <b>Mã hàng, Tên hàng, ĐVT, Giá bán, Giá vốn</b> — các cột khác trong file sẽ bị
+          bỏ qua), hoặc thêm nhanh từng sản phẩm bên dưới.</p>
+
+        <div class="import-summary" id="importSummary" style="display:none;">
+          <div class="import-summary-text" id="importSummaryText"></div>
+          <div class="actions">
+            <button class="btn btn-primary btn-sm" id="importAppendBtn">➕ Thêm vào danh mục hiện tại</button>
+            <button class="btn btn-gold btn-sm" id="importReplaceBtn">♻ Thay thế toàn bộ danh mục</button>
+            <button class="btn btn-ghost btn-sm" id="importCancelBtn">Huỷ</button>
+          </div>
+        </div>
+
+        <div class="row" id="productAddRow">
+          <div class="field" style="min-width:120px; flex:0.7;">
+            <label>Mã hàng</label>
+            <input type="text" id="newProdMa" placeholder="HH000001">
+          </div>
+          <div class="field" style="flex:2;">
+            <label>Tên hàng</label>
+            <input type="text" id="newProdTen" placeholder="Tên sản phẩm">
+          </div>
+          <div class="field" style="min-width:90px; flex:0.5;">
+            <label>ĐVT</label>
+            <input type="text" id="newProdDvt" placeholder="kg">
+          </div>
+          <div class="field" style="min-width:110px; flex:0.7;">
+            <label>Giá bán</label>
+            <input type="text" id="newProdGiaBan" placeholder="0">
+          </div>
+          <div class="field" style="min-width:110px; flex:0.7;">
+            <label>Giá vốn</label>
+            <input type="text" id="newProdGiaVon" placeholder="0">
+          </div>
+          <button class="btn btn-primary" id="addProductBtn">+ Thêm</button>
+        </div>
+
+        <div class="catalog-filter-bar">
+          <input type="text" id="catalogFilterInput" placeholder="🔍 Lọc nhanh trong danh mục theo mã hoặc tên..."
+            autocomplete="off">
+          <span class="catalog-count-hint" id="catalogCountHint"></span>
+        </div>
+        <div class="table-scroll" id="catalogScroll">
+          <table class="saved-table" id="catalogTable">
+            <thead>
+              <tr>
+                <th style="width:100px;">Mã hàng</th>
+                <th>Tên hàng</th>
+                <th style="width:60px;">ĐVT</th>
+                <th class="num" style="width:100px;">Giá bán</th>
+                <th class="num" style="width:100px;">Giá vốn</th>
+                <th style="width:50px;"></th>
+              </tr>
+            </thead>
+            <tbody id="catalogTbody"></tbody>
+          </table>
+        </div>
+        <div class="empty-state" id="catalogEmpty">
+          <p>Chưa có sản phẩm nào trong danh mục. Nhập file Excel/CSV hoặc thêm thủ công ở trên.</p>
+        </div>
+      </section>
+    </div><!-- /tabSearch -->
 
     <footer>Dữ liệu do AI đọc có thể sai sót — vui lòng kiểm tra lại trước khi dùng để đối chiếu sổ sách.</footer>
   </div>

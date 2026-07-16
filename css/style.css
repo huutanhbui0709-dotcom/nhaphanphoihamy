@@ -770,6 +770,156 @@
         line-height: 1.6;
     }
 
+    /* ---------- product search tab ---------- */
+    #tabSearch {
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+    }
+
+    .search-bar {
+        display: flex;
+        gap: 10px;
+        margin: 16px 0 18px;
+    }
+
+    .search-bar input {
+        flex: 1;
+        font-size: 16px;
+        padding: 13px 16px;
+    }
+
+    .match-badge {
+        display: inline-block;
+        min-width: 46px;
+        text-align: center;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 700;
+        font-family: 'IBM Plex Mono', monospace;
+        background: #e7f3ec;
+        color: var(--ok);
+    }
+
+    .match-badge.mid {
+        background: #fdf3e0;
+        color: var(--gold);
+    }
+
+    .match-badge.low {
+        background: #f0f3f7;
+        color: #555d6d;
+    }
+
+    .copy-row-btn {
+        background: none;
+        border: none;
+        color: #1a1f2e;
+        cursor: pointer;
+        font-size: 15px;
+        padding: 4px 8px;
+        opacity: .7;
+    }
+
+    .copy-row-btn:hover {
+        opacity: 1;
+    }
+
+    #productAddRow {
+        align-items: flex-end;
+    }
+
+    .import-summary {
+        background: #fdf3e0;
+        border: 1px solid #f3ddab;
+        border-radius: 10px;
+        padding: 14px 16px;
+        margin-bottom: 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .import-summary-text {
+        font-size: 14.5px;
+        color: #1a1f2e;
+        line-height: 1.5;
+    }
+
+    .import-summary .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
+
+    /* ---------- scrollable tables ---------- */
+    .table-scroll {
+        max-height: 460px;
+        overflow-y: auto;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+    }
+
+    .table-scroll table.saved-table {
+        margin-top: 0;
+    }
+
+    .table-scroll table.saved-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #fafbfc;
+        box-shadow: 0 1px 0 var(--line);
+    }
+
+    .table-scroll table.saved-table tbody tr:nth-child(even) td {
+        background: #fafbfd;
+    }
+
+    .table-scroll table.saved-table tbody tr:hover td {
+        background: #f0f4fa;
+    }
+
+    /* thin, unobtrusive scrollbar */
+    .table-scroll::-webkit-scrollbar {
+        width: 9px;
+    }
+
+    .table-scroll::-webkit-scrollbar-thumb {
+        background: #cbd5e3;
+        border-radius: 6px;
+    }
+
+    .table-scroll::-webkit-scrollbar-thumb:hover {
+        background: #aebbcf;
+    }
+
+    /* ---------- catalog filter bar ---------- */
+    .catalog-filter-bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 18px 0 10px;
+    }
+
+    .catalog-filter-bar input {
+        flex: 1;
+        max-width: 420px;
+    }
+
+    .catalog-count-hint {
+        font-size: 13px;
+        color: #555d6d;
+        white-space: nowrap;
+    }
+
+    @media(max-width:640px) {
+        .search-bar {
+            flex-direction: column;
+        }
+    }
+
     @media(max-width:640px) {
         .inv-head {
             flex-direction: column;
