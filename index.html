@@ -1,1000 +1,130 @@
 <!DOCTYPE html>
 <html lang="vi">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Trích Hoá Đơn — Đọc hoá đơn bằng AI</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<style>
-  :root{
-    --ink-900:#12141c;
-    --ink-800:#1b1f2b;
-    --navy:#161a2b;
-    --paper:#faf6ec;
-    --paper-dark:#f0e9d8;
-    --seal:#a92d2d;
-    --seal-dark:#7e1f1f;
-    --gold:#b8903f;
-    --line:#d9d0b8;
-    --ok:#3f7a5c;
-    --text:#241f14;
-    --muted:#6b6353;
-    --radius:14px;
-    --shadow:0 12px 30px -14px rgba(18,20,28,.35);
-  }
-  *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
-  body{
-    background:
-      radial-gradient(1100px 500px at 15% -10%, #232a44 0%, transparent 60%),
-      radial-gradient(900px 500px at 100% 0%, #2c2140 0%, transparent 55%),
-      var(--navy);
-    color:var(--text);
-    font-family:'Inter',sans-serif;
-    min-height:100vh;
-  }
-  .wrap{max-width:1180px;margin:0 auto;padding:36px 24px 80px;}
-
-  /* ---------- header ---------- */
-  header{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:28px;flex-wrap:wrap;}
-  .brand{display:flex;align-items:center;gap:14px;}
-  .brand-mark{
-    width:46px;height:46px;border-radius:50%;
-    background:conic-gradient(from 210deg, var(--seal), var(--seal-dark), var(--seal));
-    display:flex;align-items:center;justify-content:center;
-    color:#f7e9d8;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:17px;
-    box-shadow:0 6px 18px -6px rgba(169,45,45,.7);
-    transform:rotate(-8deg);
-    border:2px solid rgba(247,233,216,.5);
-  }
-  .brand h1{
-    font-family:'Space Grotesk',sans-serif;color:#f6f2e6;font-size:22px;margin:0;letter-spacing:.2px;
-  }
-  .brand p{margin:2px 0 0;color:#a9a5c0;font-size:13px;}
-
-  .settings-toggle{
-    background:rgba(255,255,255,.06);color:#f0ecdf;border:1px solid rgba(255,255,255,.14);
-    padding:10px 16px;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;
-    display:flex;align-items:center;gap:8px;transition:.15s;
-  }
-  .settings-toggle:hover{background:rgba(255,255,255,.12);}
-
-  /* ---------- cards / paper ---------- */
-  .paper-card{
-    background:
-      repeating-linear-gradient(transparent, transparent 27px, rgba(180,160,110,.08) 28px),
-      var(--paper);
-    border-radius:var(--radius);
-    box-shadow:var(--shadow);
-    border:1px solid var(--line);
-    position:relative;
-    overflow:hidden;
-  }
-  .paper-card::before{
-    content:"";position:absolute;top:0;left:0;right:0;height:5px;
-    background:linear-gradient(90deg, var(--seal), var(--gold));
-  }
-
-  /* ---------- settings panel ---------- */
-  #settingsPanel{padding:22px 26px;margin-bottom:22px;display:none;}
-  #settingsPanel.open{display:block;}
-  #settingsPanel h2{font-family:'Space Grotesk',sans-serif;font-size:16px;margin:0 0 4px;}
-  #settingsPanel .hint{color:var(--muted);font-size:13px;margin:0 0 16px;}
-  #settingsPanel .hint a{color:var(--seal);font-weight:600;text-decoration:none;}
-  .row{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;}
-  .field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:220px;}
-  .field label{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);}
-  input[type=text],input[type=password],select,textarea{
-    font-family:'Inter',sans-serif;
-    border:1px solid var(--line);background:#fffdf7;color:var(--text);
-    padding:10px 12px;border-radius:9px;font-size:14px;outline:none;transition:.15s;
-  }
-  input:focus,select:focus,textarea:focus{border-color:var(--seal);box-shadow:0 0 0 3px rgba(169,45,45,.12);}
-  .btn{
-    font-family:'Inter',sans-serif;font-weight:600;font-size:13.5px;border:none;cursor:pointer;
-    padding:10px 18px;border-radius:9px;transition:.15s;display:inline-flex;align-items:center;gap:8px;
-  }
-  .btn-primary{background:var(--seal);color:#fff8ef;}
-  .btn-primary:hover{background:var(--seal-dark);}
-  .btn-primary:disabled{background:#c7a9a9;cursor:not-allowed;}
-  .btn-ghost{background:transparent;color:var(--text);border:1px solid var(--line);}
-  .btn-ghost:hover{background:rgba(0,0,0,.04);}
-  .btn-gold{background:var(--gold);color:#241f14;}
-  .btn-gold:hover{filter:brightness(1.06);}
-  .btn-sm{padding:7px 12px;font-size:12.5px;}
-
-  /* ---------- dropzone ---------- */
-  #dropzone{
-    padding:34px 24px;text-align:center;cursor:pointer;margin-bottom:22px;
-    border:2px dashed var(--line);
-  }
-  #dropzone.drag{border-color:var(--seal);background:rgba(169,45,45,.04);}
-  #dropzone:focus{outline:none;border-color:var(--gold);background:rgba(184,144,63,.05);}
-  #dropzone.paste-flash{border-color:var(--ok);background:rgba(63,122,92,.08);}
-  #dropzone svg{opacity:.55;margin-bottom:10px;}
-  #dropzone h3{margin:0 0 4px;font-family:'Space Grotesk',sans-serif;font-size:16.5px;}
-  #dropzone p{margin:0;color:var(--muted);font-size:13.5px;}
-  #fileInput{display:none;}
-
-  #fileList{display:flex;flex-wrap:wrap;gap:10px;margin:-8px 0 22px;}
-  .file-chip{
-    display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.06);
-    color:#f0ecdf;border:1px solid rgba(255,255,255,.14);padding:7px 8px 7px 12px;
-    border-radius:999px;font-size:12.5px;
-  }
-  .file-chip button{background:none;border:none;color:#e3b8b8;cursor:pointer;font-size:15px;line-height:1;padding:2px 4px;}
-
-  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;flex-wrap:wrap;gap:12px;}
-  .toolbar .actions{display:flex;gap:10px;flex-wrap:wrap;}
-
-  /* ---------- invoice results ---------- */
-  #results{display:flex;flex-direction:column;gap:24px;}
-  .invoice-card{padding:26px 28px 22px;animation:fadein .4s ease;}
-  @keyframes fadein{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
-
-  .inv-head{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:16px;}
-  .inv-head .meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;flex:1;}
-  .meta-field label{display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px;}
-  .meta-field input{width:100%;font-family:'IBM Plex Mono',monospace;font-size:13.5px;}
-
-  .stamp{
-    align-self:flex-start;flex-shrink:0;
-    width:82px;height:82px;border-radius:50%;
-    border:2.5px solid var(--seal);color:var(--seal);
-    display:flex;align-items:center;justify-content:center;text-align:center;
-    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:11px;line-height:1.25;
-    transform:rotate(-10deg);opacity:.8;
-    text-transform:uppercase;letter-spacing:.03em;
-  }
-  .stamp.err{border-color:#7a3f3f;color:#7a3f3f;}
-
-  table.items{width:100%;border-collapse:collapse;margin:6px 0 14px;font-size:13px;}
-  table.items th{
-    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
-    border-bottom:1.5px solid var(--line);padding:6px 8px;font-weight:700;white-space:nowrap;
-  }
-  table.items td{border-bottom:1px solid var(--line);padding:4px 6px;vertical-align:middle;}
-  table.items td input{
-    width:100%;border:1px solid transparent;background:transparent;padding:5px 6px;border-radius:6px;
-    font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text);
-  }
-  table.items td input:hover{border-color:var(--line);}
-  table.items td input:focus{border-color:var(--seal);background:#fffdf7;}
-  table.items td.name-cell input{font-family:'Inter',sans-serif;}
-  table.items td.num{text-align:right;}
-  table.items td.num input{text-align:right;}
-  table.items tr:hover{background:rgba(184,144,63,.06);}
-  .del-row{background:none;border:none;color:#a35;cursor:pointer;font-size:15px;padding:2px 6px;}
-  .add-row-btn{margin-top:2px;}
-
-  .totals{display:flex;justify-content:flex-end;margin:6px 0 16px;}
-  .totals-box{min-width:280px;font-size:13.5px;}
-  .totals-line{display:flex;justify-content:space-between;padding:5px 0;gap:16px;}
-  .totals-line label{color:var(--muted);font-weight:600;}
-  .totals-line input{font-family:'IBM Plex Mono',monospace;text-align:right;width:150px;}
-  .totals-line.grand{border-top:1.5px solid var(--line);margin-top:4px;padding-top:8px;font-weight:700;}
-  .totals-line.grand input{font-size:14.5px;}
-  .words-box{
-    margin-top:8px;padding:10px 12px;background:var(--paper-dark);border-radius:8px;
-    font-size:12.5px;color:var(--muted);font-style:italic;border:1px solid var(--line);
-  }
-  .words-box b{color:var(--text);font-style:normal;}
-
-  .card-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:4px;}
-
-  .status-line{display:flex;align-items:center;gap:10px;padding:16px 4px;color:#5b5340;font-size:14px;}
-  .spinner{
-    width:16px;height:16px;border-radius:50%;border:2.5px solid var(--line);
-    border-top-color:var(--seal);animation:spin .8s linear infinite;flex-shrink:0;
-  }
-  @keyframes spin{to{transform:rotate(360deg);}}
-
-  .empty-state{padding:50px 20px;text-align:center;color:#c9c4dc;}
-  .empty-state svg{opacity:.35;margin-bottom:12px;}
-  .empty-state p{margin:0;font-size:14px;}
-
-  .toast{
-    position:fixed;bottom:26px;left:50%;transform:translateX(-50%);
-    background:var(--ink-800);color:#f4efe0;padding:11px 20px;border-radius:999px;
-    font-size:13.5px;box-shadow:0 10px 30px -10px rgba(0,0,0,.5);opacity:0;pointer-events:none;
-    transition:opacity .25s, transform .25s;z-index:50;
-  }
-  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
-
-  .err-box{background:#fbeaea;border:1px solid #e3b8b8;color:#7a3f3f;padding:12px 16px;border-radius:9px;font-size:13.5px;margin-top:8px;}
-
-  /* ---------- tabs ---------- */
-  .tabs{display:flex;gap:6px;margin-bottom:20px;border-bottom:1px solid rgba(255,255,255,.14);}
-  .tab-btn{
-    background:none;border:none;color:#b9b5cf;font-family:'Inter',sans-serif;font-weight:600;font-size:14px;
-    padding:11px 6px;cursor:pointer;position:relative;display:flex;align-items:center;gap:8px;margin-right:18px;
-  }
-  .tab-btn::after{
-    content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:transparent;border-radius:2px;
-  }
-  .tab-btn.active{color:#f6f2e6;}
-  .tab-btn.active::after{background:var(--seal);}
-  .tab-btn:hover{color:#f0ecdf;}
-  .tab-count{
-    background:rgba(255,255,255,.12);color:#e9e5f5;font-size:11px;font-weight:700;
-    border-radius:999px;padding:2px 8px;min-width:18px;text-align:center;
-  }
-  .tab-btn.active .tab-count{background:var(--seal);color:#fff8ef;}
-
-  /* ---------- saved table ---------- */
-  .saved-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
-  .saved-head h2{font-family:'Space Grotesk',sans-serif;font-size:16px;margin:0;}
-  table.saved-table{width:100%;border-collapse:collapse;font-size:14px;}
-  table.saved-table th{
-    text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);
-    border-bottom:1.5px solid var(--line);padding:8px;font-weight:700;
-  }
-  table.saved-table td{border-bottom:1px solid var(--line);padding:9px 8px;font-family:'IBM Plex Mono',monospace;}
-  table.saved-table td:nth-child(2){font-family:'Inter',sans-serif;}
-  table.saved-table th.num,table.saved-table td.num{text-align:right;}
-  table.saved-table tr:hover td{background:rgba(184,144,63,.06);}
-  table.saved-table tfoot td{border-top:2px solid var(--line);border-bottom:none;font-weight:700;padding-top:10px;}
-  .saved-del{background:none;border:none;color:#a35;cursor:pointer;font-size:14px;padding:4px 8px;}
-  .saved-del:hover{text-decoration:underline;}
-
-  footer{text-align:center;color:#8b87a5;font-size:12px;margin-top:40px;}
-
-  @media(max-width:640px){
-    .inv-head{flex-direction:column;}
-    .stamp{align-self:center;}
-    table.items{font-size:12px;}
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Công cụ hỗ trợ Tích hợp AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="./css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
+
 <body>
-<div class="wrap">
+  <div class="wrap">
 
-  <header>
-    <div class="brand">
-      <div class="brand-mark">AI</div>
-      <div>
-        <h1>Trích Hoá Đơn</h1>
-        <p>Chụp hoá đơn → bảng số liệu → dán thẳng vào Excel</p>
-      </div>
-    </div>
-    <button class="settings-toggle" id="settingsToggle">⚙ Cấu hình API</button>
-  </header>
-
-  <section class="paper-card" id="settingsPanel">
-    <h2>Kết nối Google AI Studio</h2>
-    <p class="hint">Cần API key miễn phí từ Google AI Studio để đọc hoá đơn. Lấy tại <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Key chỉ lưu trong trình duyệt của bạn, không gửi đi đâu khác.</p>
-    <div class="row">
-      <div class="field" style="flex:2;">
-        <label>Gemini API Key</label>
-        <input type="password" id="apiKeyInput" placeholder="AIzaSy...">
-      </div>
-      <div class="field">
-        <label>Model</label>
-        <select id="modelSelect">
-          <option value="gemini-3.5-flash">gemini-3.5-flash (khuyên dùng)</option>
-          <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-          <option value="gemini-2.5-pro">gemini-2.5-pro (chính xác hơn, chậm hơn)</option>
-        </select>
-      </div>
-      <button class="btn btn-primary" id="saveKeyBtn">Lưu cấu hình</button>
-    </div>
-  </section>
-
-  <nav class="tabs">
-    <button class="tab-btn active" data-tab="process">Xử lý hoá đơn</button>
-    <button class="tab-btn" data-tab="saved">Danh sách hoá đơn <span class="tab-count" id="savedCount">0</span></button>
-  </nav>
-
-  <div class="tab-panel" id="tabProcess">
-  <section class="paper-card" id="dropzone" tabindex="0">
-    <input type="file" id="fileInput" accept="image/*,.pdf" multiple>
-    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-    <h3>Kéo thả, dán (Ctrl+V) hoặc chọn ảnh/PDF hoá đơn</h3>
-    <p>Bấm vào khung này rồi nhấn Ctrl+V để dán ảnh vừa chụp/copy — có thể chọn nhiều hoá đơn cùng lúc</p>
-  </section>
-
-  <div id="fileList"></div>
-
-  <div class="toolbar" id="toolbar" style="display:none;">
-    <button class="btn btn-primary" id="processBtn">Trích xuất dữ liệu</button>
-    <div class="actions">
-      <button class="btn btn-ghost btn-sm" id="copyAllBtn">📋 Sao chép tất cả</button>
-      <button class="btn btn-gold btn-sm" id="exportAllBtn">⬇ Xuất Excel (tất cả)</button>
-    </div>
-  </div>
-
-  <div id="results"></div>
-
-  <div class="empty-state" id="emptyState">
-    <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M8 12h8M8 16h5"/></svg>
-    <p>Chưa có hoá đơn nào được xử lý. Thêm ảnh/PDF ở trên rồi bấm "Trích xuất dữ liệu".</p>
-  </div>
-  </div><!-- /tabProcess -->
-
-  <div class="tab-panel" id="tabSaved" style="display:none;">
-    <section class="paper-card" id="savedSection" style="padding:22px 26px;">
-      <div class="saved-head">
-        <h2>Hoá đơn đã lưu</h2>
-        <div class="actions">
-          <button class="btn btn-ghost btn-sm" id="refreshSavedBtn">🔄 Làm mới</button>
-          <button class="btn btn-ghost btn-sm" id="exportSavedBtn">⬇ Xuất Excel danh sách</button>
+    <header>
+      <div class="brand">
+        <div class="brand-mark">AI</div>
+        <div>
+          <h1>Trích Hoá Đơn</h1>
+          <p>Chụp hoá đơn → bảng số liệu → dán thẳng vào Excel</p>
         </div>
       </div>
-      <table class="saved-table" id="savedTable">
-        <thead><tr><th>Số HĐ</th><th>Ngày</th><th class="num">Tổng tiền</th><th style="width:70px;"></th></tr></thead>
-        <tbody id="savedTbody"></tbody>
-        <tfoot><tr><td colspan="2">Tổng cộng</td><td class="num" id="savedGrandTotal">0</td><td></td></tr></tfoot>
-      </table>
-      <div class="empty-state" id="savedEmpty" style="display:none;">
-        <p>Chưa lưu hoá đơn nào. Sang tab "Xử lý hoá đơn" và bấm "💾 Lưu" trên hoá đơn bạn muốn giữ lại.</p>
+      <button class="settings-toggle" id="settingsToggle">⚙ Cấu hình API</button>
+    </header>
+
+    <section class="paper-card" id="settingsPanel">
+      <h2>Kết nối Google AI Studio</h2>
+      <p class="hint">Cần API key miễn phí từ Google AI Studio để đọc hoá đơn. Lấy tại <a
+          href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. Key
+        chỉ lưu trong trình duyệt của bạn, không gửi đi đâu khác.</p>
+      <div class="row">
+        <div class="field" style="flex:2;">
+          <label>Gemini API Key</label>
+          <input type="password" id="apiKeyInput" placeholder="AIzaSy...">
+        </div>
+        <div class="field">
+          <label>Model</label>
+          <select id="modelSelect">
+            <option value="gemini-3.5-flash">gemini-3.5-flash (khuyên dùng)</option>
+            <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+            <option value="gemini-2.5-pro">gemini-2.5-pro (chính xác hơn, chậm hơn)</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" id="saveKeyBtn">Lưu cấu hình</button>
       </div>
     </section>
-  </div><!-- /tabSaved -->
 
-  <footer>Dữ liệu do AI đọc có thể sai sót — vui lòng kiểm tra lại trước khi dùng để đối chiếu sổ sách.</footer>
-</div>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="process">Xử lý hoá đơn</button>
+      <button class="tab-btn" data-tab="saved">Danh sách hoá đơn <span class="tab-count"
+          id="savedCount">0</span></button>
+    </nav>
 
-<div class="toast" id="toast"></div>
+    <div class="tab-panel" id="tabProcess">
+      <section class="paper-card" id="dropzone" tabindex="0">
+        <input type="file" id="fileInput" accept="image/*,.pdf" multiple>
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+          <path d="M12 16V4M12 4l-4 4M12 4l4 4" />
+          <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+        </svg>
+        <h3>Kéo thả, dán (Ctrl+V) hoặc chọn ảnh/PDF hoá đơn</h3>
+        <p>Bấm vào khung này rồi nhấn Ctrl+V để dán ảnh vừa chụp/copy — có thể chọn nhiều hoá đơn cùng lúc</p>
+      </section>
 
-<script>
-/* ===================== Vietnamese number-to-words ===================== */
-const CHUSO = ["", "một", "hai", "ba", "bốn", "năm", "sáu", "bảy", "tám", "chín"];
-function docSo3ChuSo(baso) {
-  let tram = Math.floor(baso / 100), chuc = Math.floor((baso % 100) / 10), donvi = baso % 10, chuoi = "";
-  if (tram === 0 && chuc === 0 && donvi === 0) return "";
-  if (tram !== 0) {
-    chuoi += CHUSO[tram] + " trăm";
-    if (chuc === 0 && donvi !== 0) chuoi += " linh";
-  }
-  if (chuc !== 0 && chuc !== 1) chuoi += " " + CHUSO[chuc] + " mươi";
-  else if (chuc === 1) chuoi += " mười";
-  if (donvi === 1) {
-    if (chuc === 0) chuoi += (tram !== 0 ? " một" : "một");
-    else if (chuc === 1) chuoi += " một";
-    else chuoi += " mốt";
-  } else if (donvi === 5) {
-    if (chuc === 0) chuoi += (tram !== 0 ? " năm" : "năm");
-    else chuoi += " lăm";
-  } else if (donvi !== 0) {
-    chuoi += " " + CHUSO[donvi];
-  }
-  return chuoi.trim();
-}
-function docTienBangChu(soTien) {
-  soTien = Math.round(Number(soTien) || 0);
-  if (soTien === 0) return "Không đồng";
-  const neg = soTien < 0;
-  soTien = Math.abs(soTien);
-  const dvBlock = ["", "nghìn", "triệu", "tỷ", "nghìn tỷ", "triệu tỷ"];
-  let groups = [], n = soTien;
-  while (n > 0) { groups.push(n % 1000); n = Math.floor(n / 1000); }
-  let parts = [];
-  for (let i = groups.length - 1; i >= 0; i--) {
-    const g = groups[i];
-    if (g === 0) continue;
-    let txt = docSo3ChuSo(g);
-    if (dvBlock[i]) txt += " " + dvBlock[i];
-    parts.push(txt);
-  }
-  let result = parts.join(" ").replace(/\s+/g, " ").trim();
-  result = result.charAt(0).toUpperCase() + result.slice(1);
-  result += " đồng";
-  return neg ? "Âm " + result : result;
-}
+      <div id="fileList"></div>
 
-/* ===================== state ===================== */
-let pendingFiles = [];   // File objects waiting to be processed
-let invoices = [];       // {id, fileName, status:'pending'|'loading'|'done'|'error', data, error, previewUrl}
-let uidCounter = 0;
-let savedInvoices = []; // populated from shared /api/invoices backend, see fetchSavedInvoices()
-
-const $ = (sel) => document.querySelector(sel);
-const settingsPanel = $("#settingsPanel");
-const settingsToggle = $("#settingsToggle");
-const apiKeyInput = $("#apiKeyInput");
-const modelSelect = $("#modelSelect");
-const dropzone = $("#dropzone");
-const fileInput = $("#fileInput");
-const fileListEl = $("#fileList");
-const toolbar = $("#toolbar");
-const resultsEl = $("#results");
-const emptyState = $("#emptyState");
-const processBtn = $("#processBtn");
-
-/* ===================== settings ===================== */
-apiKeyInput.value = localStorage.getItem("gemini_api_key") || "";
-modelSelect.value = localStorage.getItem("gemini_model") || "gemini-3.5-flash";
-if (!apiKeyInput.value) settingsPanel.classList.add("open");
-
-settingsToggle.addEventListener("click", () => settingsPanel.classList.toggle("open"));
-$("#saveKeyBtn").addEventListener("click", () => {
-  localStorage.setItem("gemini_api_key", apiKeyInput.value.trim());
-  localStorage.setItem("gemini_model", modelSelect.value);
-  showToast("Đã lưu cấu hình.");
-  settingsPanel.classList.remove("open");
-});
-
-/* ===================== tabs ===================== */
-document.querySelectorAll(".tab-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    const tab = btn.dataset.tab;
-    $("#tabProcess").style.display = tab === "process" ? "" : "none";
-    $("#tabSaved").style.display = tab === "saved" ? "" : "none";
-    if (tab === "saved") fetchSavedInvoices();
-  });
-});
-
-/* ===================== saved invoices (shared backend via /api/invoices) ===================== */
-let savedLoading = false;
-let savedLoadError = null;
-
-async function fetchSavedInvoices() {
-  savedLoading = true;
-  savedLoadError = null;
-  renderSavedTable();
-  try {
-    const res = await fetch("/api/invoices");
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error || "Không tải được danh sách.");
-    savedInvoices = json.invoices || [];
-  } catch (err) {
-    savedLoadError = err.message || String(err);
-  }
-  savedLoading = false;
-  updateSavedCount();
-  renderSavedTable();
-}
-
-async function saveInvoiceToList(inv) {
-  const d = inv.data;
-  const payload = {
-    fileName: inv.fileName,
-    so_hoa_don: d.so_hoa_don,
-    ngay_hoa_don: d.ngay_hoa_don,
-    tong_thanh_toan: d.tong_thanh_toan,
-    tong_bang_chu: d.tong_bang_chu,
-    data: d
-  };
-  try {
-    const res = await fetch("/api/invoices", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error || "Lưu thất bại.");
-    savedInvoices = json.invoices || [];
-    updateSavedCount();
-    showToast("Đã lưu hoá đơn — mọi người xem trang này đều thấy.");
-  } catch (err) {
-    showToast("Không lưu được: " + (err.message || err));
-  }
-}
-
-async function deleteSavedInvoice(id) {
-  try {
-    const res = await fetch(`/api/invoices?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error || "Xoá thất bại.");
-    savedInvoices = json.invoices || [];
-    renderSavedTable();
-    updateSavedCount();
-  } catch (err) {
-    showToast("Không xoá được: " + (err.message || err));
-  }
-}
-
-function updateSavedCount() {
-  $("#savedCount").textContent = savedInvoices.length;
-}
-function renderSavedTable() {
-  const tbody = $("#savedTbody");
-  tbody.innerHTML = "";
-  const table = $("#savedTable");
-  const empty = $("#savedEmpty");
-
-  if (savedLoading) {
-    table.style.display = "none";
-    empty.style.display = "block";
-    empty.innerHTML = `<div class="status-line" style="justify-content:center;"><div class="spinner"></div> Đang tải danh sách dùng chung…</div>`;
-    return;
-  }
-  if (savedLoadError) {
-    table.style.display = "none";
-    empty.style.display = "block";
-    empty.innerHTML = `<div class="err-box">${escapeHtml(savedLoadError)}</div>`;
-    return;
-  }
-  empty.style.display = savedInvoices.length ? "none" : "block";
-  empty.innerHTML = `<p>Chưa lưu hoá đơn nào. Sang tab "Xử lý hoá đơn" và bấm "💾 Lưu" trên hoá đơn bạn muốn giữ lại.</p>`;
-  table.style.display = savedInvoices.length ? "table" : "none";
-
-  let grand = 0;
-  savedInvoices.forEach(s => {
-    grand += Number(s.tong_thanh_toan) || 0;
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${escapeHtml(s.so_hoa_don || "—")}</td>
-      <td>${escapeHtml(s.ngay_hoa_don || "—")}</td>
-      <td class="num">${formatNumber(s.tong_thanh_toan)}</td>
-      <td><button class="saved-del" title="Xoá khỏi danh sách">✕</button></td>`;
-    tr.querySelector(".saved-del").onclick = () => deleteSavedInvoice(s.id);
-    tbody.appendChild(tr);
-  });
-  $("#savedGrandTotal").textContent = formatNumber(grand);
-}
-function formatNumber(n) {
-  return (Number(n) || 0).toLocaleString("vi-VN");
-}
-$("#exportSavedBtn").addEventListener("click", () => {
-  if (!savedInvoices.length) { showToast("Chưa có hoá đơn nào trong danh sách."); return; }
-  const aoa = [["Số HĐ", "Ngày", "Tổng tiền"]];
-  savedInvoices.forEach(s => aoa.push([s.so_hoa_don, s.ngay_hoa_don, s.tong_thanh_toan]));
-  aoa.push(["", "Tổng cộng", savedInvoices.reduce((a, s) => a + (Number(s.tong_thanh_toan) || 0), 0)]);
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = [{ wch: 14 }, { wch: 14 }, { wch: 16 }];
-  XLSX.utils.book_append_sheet(wb, ws, "Danh sach hoa don");
-  XLSX.writeFile(wb, `danh_sach_hoa_don_${new Date().toISOString().slice(0, 10)}.xlsx`);
-});
-fetchSavedInvoices();
-$("#refreshSavedBtn").addEventListener("click", fetchSavedInvoices);
-
-/* ===================== file intake ===================== */
-dropzone.addEventListener("click", () => fileInput.click());
-["dragenter", "dragover"].forEach(evt =>
-  dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.add("drag"); })
-);
-["dragleave", "drop"].forEach(evt =>
-  dropzone.addEventListener(evt, e => { e.preventDefault(); dropzone.classList.remove("drag"); })
-);
-dropzone.addEventListener("drop", e => addFiles(e.dataTransfer.files));
-fileInput.addEventListener("change", e => { addFiles(e.target.files); fileInput.value = ""; });
-
-function addFiles(fileArr) {
-  Array.from(fileArr).forEach(f => {
-    if (!/^image\//.test(f.type) && f.type !== "application/pdf") return;
-    pendingFiles.push(f);
-  });
-  renderFileList();
-}
-
-/* ---- paste image from clipboard (Ctrl+V) ---- */
-function handlePasteEvent(e) {
-  // don't hijack paste while user is typing in a text field
-  const active = document.activeElement;
-  const isTyping = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA");
-  if (isTyping && active !== apiKeyInput) return;
-
-  const items = e.clipboardData && e.clipboardData.items;
-  if (!items) return;
-  const found = [];
-  for (const item of items) {
-    if (item.kind === "file" && /^image\//.test(item.type)) {
-      const file = item.getAsFile();
-      if (file) {
-        // clipboard image blobs often come with a generic name; give a readable one
-        const ext = (item.type.split("/")[1] || "png").replace("jpeg", "jpg");
-        const named = new File([file], `dan-anh-${Date.now()}.${ext}`, { type: item.type });
-        found.push(named);
-      }
-    }
-  }
-  if (found.length) {
-    e.preventDefault();
-    addFiles(found);
-    flashDropzone();
-    showToast(found.length > 1 ? `Đã dán ${found.length} ảnh.` : "Đã dán ảnh.");
-  }
-}
-function flashDropzone() {
-  dropzone.classList.add("paste-flash");
-  setTimeout(() => dropzone.classList.remove("paste-flash"), 500);
-}
-dropzone.addEventListener("paste", handlePasteEvent);
-document.addEventListener("paste", handlePasteEvent);
-function renderFileList() {
-  fileListEl.innerHTML = "";
-  pendingFiles.forEach((f, i) => {
-    const chip = document.createElement("div");
-    chip.className = "file-chip";
-    chip.innerHTML = `<span>${f.type === "application/pdf" ? "📄" : "🖼"} ${escapeHtml(f.name)}</span>`;
-    const btn = document.createElement("button");
-    btn.textContent = "✕";
-    btn.onclick = () => { pendingFiles.splice(i, 1); renderFileList(); };
-    chip.appendChild(btn);
-    fileListEl.appendChild(chip);
-  });
-  toolbar.style.display = (pendingFiles.length || invoices.length) ? "flex" : "none";
-  processBtn.style.display = pendingFiles.length ? "inline-flex" : "none";
-  processBtn.textContent = `Trích xuất dữ liệu (${pendingFiles.length})`;
-}
-
-/* ===================== Gemini call ===================== */
-const RESPONSE_SCHEMA = {
-  type: "OBJECT",
-  properties: {
-    so_hoa_don: { type: "STRING", description: "Số hoá đơn / số phiếu ghi trên chứng từ" },
-    ngay_hoa_don: { type: "STRING", description: "Ngày trên hoá đơn, định dạng dd/mm/yyyy" },
-    ten_nguoi_ban: { type: "STRING" },
-    ten_khach_hang: { type: "STRING" },
-    danh_sach_san_pham: {
-      type: "ARRAY",
-      items: {
-        type: "OBJECT",
-        properties: {
-          stt: { type: "INTEGER" },
-          ma_hang: { type: "STRING" },
-          ten_hang: { type: "STRING" },
-          dvt: { type: "STRING", description: "Đơn vị tính" },
-          so_luong: { type: "NUMBER" },
-          don_gia: { type: "NUMBER" },
-          thanh_tien: { type: "NUMBER" }
-        },
-        required: ["ten_hang", "so_luong", "don_gia", "thanh_tien"]
-      }
-    },
-    cong_tien_hang: { type: "NUMBER", description: "Tổng cộng tiền hàng trước khi cộng nợ cũ" },
-    no_cu: { type: "NUMBER", description: "Nợ cũ nếu có, mặc định 0" },
-    tong_thanh_toan: { type: "NUMBER", description: "Tổng số tiền cần thanh toán cuối cùng" }
-  },
-  required: ["danh_sach_san_pham", "tong_thanh_toan"]
-};
-
-const PROMPT = `Bạn là trợ lý kế toán. Đây là ảnh hoặc PDF của một phiếu báo giá / hoá đơn / bảng kê hàng hoá tiếng Việt.
-Hãy đọc kỹ toàn bộ bảng sản phẩm và các thông tin tổng tiền, rồi trả về đúng theo schema JSON đã cho.
-Quy tắc:
-- Giữ nguyên số liệu như trên chứng từ, không tự làm tròn hay suy diễn.
-- so_luong, don_gia, thanh_tien là số thuần (không có dấu chấm/phẩy ngăn cách hàng nghìn, không có ký hiệu tiền tệ).
-- Nếu một dòng sản phẩm bị gạch ngang / gạch bỏ (hàng trả lại, hàng huỷ), vẫn liệt kê dòng đó nhưng thêm "[Đã gạch bỏ]" vào đầu ten_hang.
-- cong_tien_hang là tổng tiền hàng (tổng các thanh_tien), no_cu là nợ cũ nếu chứng từ có ghi (mặc định 0 nếu không có), tong_thanh_toan là số tiền cuối cùng khách phải trả (thường là cong_tien_hang + no_cu, hoặc số viết tay cuối phiếu nếu có).
-- Nếu không tìm thấy số hoá đơn hoặc ngày, để chuỗi rỗng.`;
-
-async function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result.split(",")[1]);
-    r.onerror = () => reject(new Error("Không đọc được tệp"));
-    r.readAsDataURL(file);
-  });
-}
-
-async function callGemini(apiKey, model, file) {
-  const base64 = await fileToBase64(file);
-  const body = {
-    contents: [{
-      role: "user",
-      parts: [
-        { text: PROMPT },
-        { inlineData: { mimeType: file.type || "application/octet-stream", data: base64 } }
-      ]
-    }],
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseSchema: RESPONSE_SCHEMA,
-      temperature: 0.1
-    }
-  };
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
-  const json = await res.json();
-  if (!res.ok) {
-    const msg = json?.error?.message || `Lỗi HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-  const text = json?.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
-  if (!text) throw new Error("Không nhận được nội dung trả về từ model.");
-  let data;
-  try { data = JSON.parse(text); }
-  catch (e) { throw new Error("Không phân tích được JSON trả về: " + text.slice(0, 200)); }
-  return data;
-}
-
-/* ===================== processing ===================== */
-processBtn.addEventListener("click", async () => {
-  const apiKey = (localStorage.getItem("gemini_api_key") || apiKeyInput.value).trim();
-  const model = localStorage.getItem("gemini_model") || modelSelect.value;
-  if (!apiKey) {
-    showToast("Vui lòng nhập và lưu API key trước.");
-    settingsPanel.classList.add("open");
-    return;
-  }
-  const filesToRun = pendingFiles.slice();
-  pendingFiles = [];
-  renderFileList();
-  processBtn.disabled = true;
-
-  for (const file of filesToRun) {
-    const id = "inv_" + (++uidCounter);
-    const inv = { id, fileName: file.name, status: "loading", data: null, error: null };
-    invoices.push(inv);
-    renderAll();
-    try {
-      const raw = await callGemini(apiKey, model, file);
-      inv.data = normalizeInvoice(raw);
-      inv.status = "done";
-    } catch (err) {
-      inv.status = "error";
-      inv.error = err.message || String(err);
-    }
-    renderAll();
-  }
-  processBtn.disabled = false;
-});
-
-function normalizeInvoice(raw) {
-  const items = (raw.danh_sach_san_pham || []).map((it, idx) => ({
-    stt: it.stt ?? (idx + 1),
-    ma_hang: it.ma_hang || "",
-    ten_hang: it.ten_hang || "",
-    dvt: it.dvt || "",
-    so_luong: numOrZero(it.so_luong),
-    don_gia: numOrZero(it.don_gia),
-    thanh_tien: numOrZero(it.thanh_tien)
-  }));
-  const data = {
-    so_hoa_don: raw.so_hoa_don || "",
-    ngay_hoa_don: raw.ngay_hoa_don || "",
-    ten_nguoi_ban: raw.ten_nguoi_ban || "",
-    ten_khach_hang: raw.ten_khach_hang || "",
-    items,
-    cong_tien_hang: numOrZero(raw.cong_tien_hang),
-    no_cu: numOrZero(raw.no_cu),
-    tong_thanh_toan: numOrZero(raw.tong_thanh_toan)
-  };
-  recalcTotals(data, { keepGrand: true });
-  return data;
-}
-function numOrZero(v) { const n = Number(v); return isNaN(n) ? 0 : n; }
-
-function recalcTotals(data, opts = {}) {
-  data.cong_tien_hang = data.items.reduce((s, it) => s + (Number(it.thanh_tien) || 0), 0);
-  if (!opts.keepGrand) {
-    data.tong_thanh_toan = data.cong_tien_hang + (Number(data.no_cu) || 0);
-  }
-  data.tong_bang_chu = docTienBangChu(data.tong_thanh_toan);
-}
-
-/* ===================== rendering ===================== */
-function renderAll() {
-  toolbar.style.display = (pendingFiles.length || invoices.length) ? "flex" : "none";
-  emptyState.style.display = invoices.length ? "none" : "block";
-  resultsEl.innerHTML = "";
-  invoices.forEach(inv => resultsEl.appendChild(renderInvoiceCard(inv)));
-}
-
-function renderInvoiceCard(inv) {
-  const card = document.createElement("div");
-  card.className = "paper-card invoice-card";
-
-  if (inv.status === "loading") {
-    card.innerHTML = `<div class="status-line"><div class="spinner"></div> Đang đọc "${escapeHtml(inv.fileName)}"…</div>`;
-    return card;
-  }
-  if (inv.status === "error") {
-    card.innerHTML = `
-      <div class="inv-head">
-        <div><strong>${escapeHtml(inv.fileName)}</strong></div>
-        <div class="stamp err">LỖI</div>
+      <div class="toolbar" id="toolbar" style="display:none;">
+        <button class="btn btn-primary" id="processBtn">Trích xuất dữ liệu</button>
+        <div class="actions">
+          <button class="btn btn-ghost btn-sm" id="copyAllBtn">📋 Sao chép tất cả</button>
+          <button class="btn btn-gold btn-sm" id="exportAllBtn">⬇ Xuất Excel (tất cả)</button>
+        </div>
       </div>
-      <div class="err-box">${escapeHtml(inv.error)}</div>`;
-    return card;
-  }
 
-  const d = inv.data;
-  const head = document.createElement("div");
-  head.className = "inv-head";
-  head.innerHTML = `
-    <div class="meta-grid">
-      <div class="meta-field"><label>Số hoá đơn</label><input data-field="so_hoa_don" value="${escapeAttr(d.so_hoa_don)}"></div>
-      <div class="meta-field"><label>Ngày hoá đơn</label><input data-field="ngay_hoa_don" value="${escapeAttr(d.ngay_hoa_don)}"></div>
-      <div class="meta-field"><label>Người bán</label><input data-field="ten_nguoi_ban" value="${escapeAttr(d.ten_nguoi_ban)}"></div>
-      <div class="meta-field"><label>Khách hàng</label><input data-field="ten_khach_hang" value="${escapeAttr(d.ten_khach_hang)}"></div>
-    </div>
-    <div class="stamp">ĐÃ TRÍCH XUẤT<br>${escapeHtml(inv.fileName).slice(0, 14)}</div>
-  `;
-  card.appendChild(head);
+      <div id="results"></div>
 
-  const table = document.createElement("table");
-  table.className = "items";
-  table.innerHTML = `
-    <thead><tr>
-      <th style="width:36px;">STT</th><th style="width:90px;">Mã hàng</th><th>Tên hàng</th>
-      <th style="width:70px;">ĐVT</th><th style="width:70px;">SL</th>
-      <th style="width:100px;">Đơn giá</th><th style="width:110px;">Thành tiền</th><th style="width:32px;"></th>
-    </tr></thead>
-    <tbody></tbody>`;
-  const tbody = table.querySelector("tbody");
-  d.items.forEach((it, idx) => tbody.appendChild(renderItemRow(inv, it, idx)));
-  card.appendChild(table);
+      <div class="empty-state" id="emptyState">
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
+          <path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" />
+          <path d="M8 12h8M8 16h5" />
+        </svg>
+        <p>Chưa có hoá đơn nào được xử lý. Thêm ảnh/PDF ở trên rồi bấm "Trích xuất dữ liệu".</p>
+      </div>
+    </div><!-- /tabProcess -->
 
-  const addBtn = document.createElement("button");
-  addBtn.className = "btn btn-ghost btn-sm add-row-btn";
-  addBtn.textContent = "+ Thêm dòng";
-  addBtn.onclick = () => {
-    d.items.push({ stt: d.items.length + 1, ma_hang: "", ten_hang: "", dvt: "", so_luong: 0, don_gia: 0, thanh_tien: 0 });
-    recalcTotals(d);
-    renderAll();
-  };
-  card.appendChild(addBtn);
+    <div class="tab-panel" id="tabSaved" style="display:none;">
+      <section class="paper-card" id="savedSection" style="padding:22px 26px;">
+        <div class="saved-head">
+          <h2>Hoá đơn đã lưu</h2>
+          <div class="actions">
+            <button class="btn btn-ghost btn-sm" id="refreshSavedBtn">🔄 Làm mới</button>
+            <button class="btn btn-ghost btn-sm" id="exportSavedBtn">⬇ Xuất Excel danh sách</button>
+          </div>
+        </div>
+        <table class="saved-table" id="savedTable">
+          <thead>
+            <tr>
+              <th>Số HĐ</th>
+              <th>Ngày</th>
+              <th class="num">Tổng tiền</th>
+              <th style="width:70px;"></th>
+            </tr>
+          </thead>
+          <tbody id="savedTbody"></tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2">Tổng cộng</td>
+              <td class="num" id="savedGrandTotal">0</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+        <div class="empty-state" id="savedEmpty" style="display:none;">
+          <p>Chưa lưu hoá đơn nào. Sang tab "Xử lý hoá đơn" và bấm "💾 Lưu" trên hoá đơn bạn muốn giữ lại.</p>
+        </div>
+      </section>
+    </div><!-- /tabSaved -->
 
-  const totals = document.createElement("div");
-  totals.className = "totals";
-  totals.innerHTML = `
-    <div class="totals-box">
-      <div class="totals-line"><label>Cộng tiền hàng</label><input data-field="cong_tien_hang" value="${d.cong_tien_hang}"></div>
-      <div class="totals-line"><label>Nợ cũ</label><input data-field="no_cu" value="${d.no_cu}"></div>
-      <div class="totals-line grand"><label>Tổng thanh toán</label><input data-field="tong_thanh_toan" value="${d.tong_thanh_toan}"></div>
-      <div class="words-box">Bằng chữ: <b>${escapeHtml(d.tong_bang_chu)}</b></div>
-    </div>`;
-  card.appendChild(totals);
+    <footer>Dữ liệu do AI đọc có thể sai sót — vui lòng kiểm tra lại trước khi dùng để đối chiếu sổ sách.</footer>
+  </div>
 
-  const actions = document.createElement("div");
-  actions.className = "card-actions";
-  actions.innerHTML = `
-    <button class="btn btn-ghost btn-sm" data-act="remove">🗑 Xoá</button>
-    <button class="btn btn-ghost btn-sm" data-act="copy">📋 Sao chép bảng</button>
-    <button class="btn btn-gold btn-sm" data-act="export">⬇ Xuất Excel</button>
-    <button class="btn btn-primary btn-sm" data-act="save">💾 Lưu hoá đơn</button>`;
-  card.appendChild(actions);
-
-  // wire head + totals inputs
-  card.querySelectorAll("[data-field]").forEach(inp => {
-    inp.addEventListener("change", () => {
-      const field = inp.dataset.field;
-      if (["cong_tien_hang", "no_cu", "tong_thanh_toan"].includes(field)) {
-        d[field] = numOrZero(inp.value);
-        if (field !== "tong_thanh_toan") recalcTotals(d, { keepGrand: false });
-        else d.tong_bang_chu = docTienBangChu(d.tong_thanh_toan);
-      } else {
-        d[field] = inp.value;
-      }
-      renderAll();
-    });
-  });
-
-  actions.querySelector('[data-act="remove"]').onclick = () => {
-    invoices = invoices.filter(x => x.id !== inv.id);
-    renderAll();
-  };
-  actions.querySelector('[data-act="copy"]').onclick = () => copyInvoice(inv);
-  actions.querySelector('[data-act="export"]').onclick = () => exportInvoiceExcel(inv);
-  actions.querySelector('[data-act="save"]').onclick = () => saveInvoiceToList(inv);
-
-  return card;
-}
-
-function renderItemRow(inv, it, idx) {
-  const d = inv.data;
-  const tr = document.createElement("tr");
-  const strike = /^\[Đã gạch bỏ\]/.test(it.ten_hang);
-  tr.innerHTML = `
-    <td class="num"><input data-idx="${idx}" data-f="stt" value="${it.stt}" style="width:34px;"></td>
-    <td><input data-idx="${idx}" data-f="ma_hang" value="${escapeAttr(it.ma_hang)}"></td>
-    <td class="name-cell"><input data-idx="${idx}" data-f="ten_hang" value="${escapeAttr(it.ten_hang)}" style="${strike ? "text-decoration:line-through;color:#a35;" : ""}"></td>
-    <td><input data-idx="${idx}" data-f="dvt" value="${escapeAttr(it.dvt)}"></td>
-    <td class="num"><input data-idx="${idx}" data-f="so_luong" value="${it.so_luong}"></td>
-    <td class="num"><input data-idx="${idx}" data-f="don_gia" value="${it.don_gia}"></td>
-    <td class="num"><input data-idx="${idx}" data-f="thanh_tien" value="${it.thanh_tien}"></td>
-    <td><button class="del-row" title="Xoá dòng">✕</button></td>`;
-  tr.querySelectorAll("input").forEach(inp => {
-    inp.addEventListener("change", () => {
-      const f = inp.dataset.f;
-      const item = d.items[idx];
-      if (["stt", "so_luong", "don_gia", "thanh_tien"].includes(f)) item[f] = numOrZero(inp.value);
-      else item[f] = inp.value;
-      if (f === "so_luong" || f === "don_gia") {
-        item.thanh_tien = Math.round(item.so_luong * item.don_gia * 100) / 100;
-      }
-      recalcTotals(d);
-      renderAll();
-    });
-  });
-  tr.querySelector(".del-row").onclick = () => {
-    d.items.splice(idx, 1);
-    recalcTotals(d);
-    renderAll();
-  };
-  return tr;
-}
-
-/* ===================== copy / export ===================== */
-function invoiceToRows(d) {
-  const header = ["STT", "Mã hàng", "Tên hàng", "ĐVT", "SL", "Đơn giá", "Thành tiền"];
-  const rows = d.items.map(it => [it.stt, it.ma_hang, it.ten_hang, it.dvt, it.so_luong, it.don_gia, it.thanh_tien]);
-  return { header, rows };
-}
-
-function copyInvoice(inv) {
-  const d = inv.data;
-  const { header, rows } = invoiceToRows(d);
-  let out = `Số hoá đơn:\t${d.so_hoa_don}\nNgày:\t${d.ngay_hoa_don}\n\n`;
-  out += header.join("\t") + "\n";
-  rows.forEach(r => out += r.join("\t") + "\n");
-  out += `\nCộng tiền hàng\t${d.cong_tien_hang}\nNợ cũ\t${d.no_cu}\nTổng thanh toán\t${d.tong_thanh_toan}\nBằng chữ\t${d.tong_bang_chu}\n`;
-  copyText(out);
-}
-
-function copyAll() {
-  if (!invoices.filter(i => i.status === "done").length) { showToast("Chưa có hoá đơn nào để sao chép."); return; }
-  let out = "";
-  invoices.filter(i => i.status === "done").forEach((inv, i) => {
-    const d = inv.data;
-    const { header, rows } = invoiceToRows(d);
-    out += `=== Hoá đơn ${d.so_hoa_don || inv.fileName} (${d.ngay_hoa_don}) ===\n`;
-    out += header.join("\t") + "\n";
-    rows.forEach(r => out += r.join("\t") + "\n");
-    out += `Cộng tiền hàng\t${d.cong_tien_hang}\nNợ cũ\t${d.no_cu}\nTổng thanh toán\t${d.tong_thanh_toan}\nBằng chữ\t${d.tong_bang_chu}\n\n`;
-  });
-  copyText(out);
-}
-
-function copyText(text) {
-  navigator.clipboard.writeText(text).then(
-    () => showToast("Đã sao chép — dán trực tiếp vào Excel hoặc Google Sheets."),
-    () => showToast("Không thể sao chép tự động, vui lòng thử lại.")
-  );
-}
-
-function exportInvoiceExcel(inv) {
-  const d = inv.data;
-  const wb = XLSX.utils.book_new();
-  appendInvoiceSheet(wb, d, inv.fileName, "Hoa_don");
-  XLSX.writeFile(wb, `hoa_don_${(d.so_hoa_don || inv.fileName).replace(/[^\w-]+/g, "_")}.xlsx`);
-  showToast("Đã tải file Excel.");
-}
-
-function exportAll() {
-  const done = invoices.filter(i => i.status === "done");
-  if (!done.length) { showToast("Chưa có hoá đơn nào để xuất."); return; }
-  const wb = XLSX.utils.book_new();
-  done.forEach((inv, i) => {
-    const sheetName = (inv.data.so_hoa_don || `HD${i + 1}`).replace(/[\\/*?:\[\]]/g, "").slice(0, 28) || `HD${i + 1}`;
-    appendInvoiceSheet(wb, inv.data, inv.fileName, sheetName);
-  });
-  XLSX.writeFile(wb, `hoa_don_tong_hop_${new Date().toISOString().slice(0, 10)}.xlsx`);
-  showToast("Đã tải file Excel tổng hợp.");
-}
-
-function appendInvoiceSheet(wb, d, fileName, sheetName) {
-  const aoa = [];
-  aoa.push(["Số hoá đơn", d.so_hoa_don, "", "Ngày", d.ngay_hoa_don]);
-  aoa.push(["Người bán", d.ten_nguoi_ban, "", "Khách hàng", d.ten_khach_hang]);
-  aoa.push([]);
-  aoa.push(["STT", "Mã hàng", "Tên hàng", "ĐVT", "SL", "Đơn giá", "Thành tiền"]);
-  d.items.forEach(it => aoa.push([it.stt, it.ma_hang, it.ten_hang, it.dvt, it.so_luong, it.don_gia, it.thanh_tien]));
-  aoa.push([]);
-  aoa.push(["", "", "", "", "", "Cộng tiền hàng", d.cong_tien_hang]);
-  aoa.push(["", "", "", "", "", "Nợ cũ", d.no_cu]);
-  aoa.push(["", "", "", "", "", "Tổng thanh toán", d.tong_thanh_toan]);
-  aoa.push(["Bằng chữ", d.tong_bang_chu]);
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!cols"] = [{ wch: 10 }, { wch: 12 }, { wch: 34 }, { wch: 8 }, { wch: 8 }, { wch: 14 }, { wch: 14 }];
-  XLSX.utils.book_append_sheet(wb, ws, sheetName.replace(/[:\\/?*\[\]]/g, "").slice(0, 31));
-}
-
-$("#copyAllBtn").addEventListener("click", copyAll);
-$("#exportAllBtn").addEventListener("click", exportAll);
-
-/* ===================== utils ===================== */
-function escapeHtml(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
-function escapeAttr(s) { return escapeHtml(s); }
-function showToast(msg) {
-  const t = $("#toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove("show"), 2800);
-}
-
-renderAll();
-</script>
+  <div class="toast" id="toast"></div>
+  <script src="./js/main.js"></script>
 </body>
+
 </html>
